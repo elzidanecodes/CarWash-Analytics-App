@@ -9,7 +9,7 @@ import InsightPage from "./pages/insights.js";
 const routes = {
   "/data": DataPage,
   "/modeling": ModelingPage,
-  "/insight": InsightPage,
+  "/insights": InsightPage,
 };
 
 const outlet = document.getElementById("spa-content");
