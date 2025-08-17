@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="id" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Join — Enhance your workflow</title>
+  <link rel="stylesheet" href="/src/css/index.css" />
+</head>
+<body class="min-h-screen bg-slate-100">
+  <!-- Top bar -->
+  <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
+      <div class="mx-auto font-semibold tracking-wide text-sky-600">
+        <span class="text-xl">Washlytics</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="p-6 ml-[17.5rem]">
+    <div class="grid grid-cols-12 gap-6">
+
+      <aside
+          class="fixed top-14 left-0 w-72 h-[calc(100vh-56px)] flex flex-col justify-center"
+        >
+          <nav class="space-y-1 px-6">
+            <a
+              class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-white"
+              href="/data"
+            >
+              <span
+                class="inline-flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500"
+              >
+                <!-- icon -->
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="size-4"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M6 2.25A2.25 2.25 0 003.75 4.5v15A2.25 2.25 0 006 21.75h12A2.25 2.25 0 0020.25 19.5v-15A2.25 2.25 0 0018 2.25H6zM7.5 6h9v1.5h-9V6zM7.5 9h9v1.5h-9V9zM7.5 12h6v1.5h-6V12z"
+                  />
+                </svg>
+              </span>
+              <div class="text-sm">
+                <div class="font-medium">Data</div>
+              </div>
+            </a>
+
+            <a
+              class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-white"
+              href="/modeling"
+            >
+              <span
+                class="inline-flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="size-4"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M4.5 6.75A2.25 2.25 0 016.75 4.5h10.5A2.25 2.25 0 0119.5 6.75v10.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 17.25V6.75zM7.5 8.25h9v1.5h-9v-1.5zM7.5 12h9v1.5h-9V12zM7.5 15.75h6v1.5h-6v-1.5z"
+                  />
+                </svg>
+              </span>
+              <div class="text-sm">
+                <div class="font-medium">Modeling</div>
+              </div>
+            </a>
+
+            <a
+              class="nav-link flex items-center gap-3 px-3 py-2 rounded-lg bg-white text-sky-700 ring-1 ring-sky-200"
+              href="/insight"
+            >
+              <span
+                class="inline-flex size-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="size-4"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M12 3a9 9 0 100 18 9 9 0 000-18zm-.75 4.5a.75.75 0 011.5 0v4.19l2.28 2.28a.75.75 0 11-1.06 1.06l-2.47-2.47a1.5 1.5 0 01-.44-1.06V7.5z"
+                  />
+                </svg>
+              </span>
+              <div class="text-sm">
+                <div class="font-semibold">Insight</div>
+              </div>
+            </a>
+          </nav>
+        </aside>
+      <!-- Content -->
+      <section id="spa-content" class="col-span-12 pr-6">
+        <!-- Konten akan di-load via JS -->
+      </section>
+    </div>
+  </main>
+
+
+  <script type="module" src="/src/js/main.js"></script>
+</body>
+
+</html>

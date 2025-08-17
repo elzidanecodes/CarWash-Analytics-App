@@ -1,0 +1,12 @@
+# Node.js dependencies
+frontend/node_modules/
+backend/venv/
+
+# Build output
+dist/
+build/
+out/
+coverage/
+
+# Optional: Ignore test snapshots
+__snapshots__/
