@@ -1,0 +1,5 @@
+{
+  "id": "id",
+  "label": null,
+  "features": ["gender","tipe_kendaraan","frekuensi","ketelitian","kecepatan","kebersihan","keramahan"]
+}
