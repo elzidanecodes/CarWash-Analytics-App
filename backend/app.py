@@ -1,16 +1,21 @@
-from flask import Flask, jsonify
+from flask import Flask
 from flask_cors import CORS
 
-app = Flask(__name__)
-CORS(app)  # aman saat dev; di prod bisa dimatikan jika 1 origin
+# import blueprint dari tiap file
+from api.data_routes import data_bp
+from api.model_routes import model_bp
+from api.report_routes import report_bp
 
-@app.get("/api/healthz")
-def healthz():
-    return jsonify({"status": "ok"})
+def create_app():
+    app = Flask(__name__)
+    CORS(app)
+    # daftar semua blueprint
+    app.register_blueprint(data_bp)
+    app.register_blueprint(model_bp)
+    app.register_blueprint(report_bp)
+    return app
 
-@app.get("/api/hello")
-def hello():
-    return jsonify({"message": "Hello from Flask dev API"})
+app = create_app()
 
 if __name__ == "__main__":
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    app.run(host="127.0.0.1", port=5000, debug=True)
