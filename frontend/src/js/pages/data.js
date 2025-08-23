@@ -45,21 +45,80 @@ function computeStats(rows, headers) {
 }
 
 function csvToObjects(text) {
-  // Parser CSV sederhana (tanpa support quote kompleks).
-  const lines = text.replace(/\r/g, "").split("\n").filter(Boolean);
-  if (lines.length === 0) return { headers: [], rows: [] };
-  const headers = lines
-    .shift()
-    .split(",")
-    .map((h) => h.trim());
-  const rows = lines.map((line) => {
-    const parts = line.split(",");
-    const obj = {};
-    headers.forEach((h, i) => (obj[h] = (parts[i] ?? "").trim()));
-    return obj;
-  });
-  return { headers, rows };
+  // Normalisasi line endings
+  const s = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  let i = 0;
+
+  while (i < s.length) {
+    const ch = s[i];
+    const next = s[i + 1];
+
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        // escaped quote "" -> "
+        cell += '"';
+        i += 2;
+        continue;
+      }
+      if (ch === '"') {
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      cell += ch;
+      i++;
+      continue;
+    } else {
+      if (ch === '"') { inQuotes = true; i++; continue; }
+      if (ch === ",") { row.push(cell.trim()); cell = ""; i++; continue; }
+      if (ch === "\n") { row.push(cell.trim()); rows.push(row); row = []; cell = ""; i++; continue; }
+      cell += ch; i++; continue;
+    }
+  }
+  // push last cell/row
+  row.push(cell.trim());
+  rows.push(row);
+
+  if (!rows.length) return { headers: [], rows: [] };
+
+  const headers = rows.shift().map(h => h.trim());
+  const objects = rows
+    .filter(r => r.length && r.some(v => v !== "")) // buang baris kosong
+    .map(r => {
+      const o = {};
+      headers.forEach((h, idx) => o[h] = (r[idx] ?? "").trim());
+      return o;
+    });
+
+  return { headers, rows: objects };
 }
+
+async function xlsxFileToObjects(file) {
+  // butuh SheetJS (XLSX) di window
+  if (typeof XLSX === "undefined") {
+    throw new Error("Parser XLSX (SheetJS) belum dimuat di halaman.");
+  }
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  const first = wb.SheetNames[0];
+  const ws = wb.Sheets[first];
+  // header: 1 baris pertama jadi nama kolom
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
+  const headers = rows.length ? Object.keys(rows[0]) : [];
+  // normalisasi semua value ke string (konsisten dengan csvToObjects)
+  const norm = rows.map(r => {
+    const o = {};
+    headers.forEach(h => o[h] = String(r[h] ?? "").trim());
+    return o;
+  });
+  return { headers, rows: norm };
+}
+
 
 function renderPreviewTable(sample, headers) {
   const container = $("#preview-table");
@@ -68,9 +127,9 @@ function renderPreviewTable(sample, headers) {
     container.innerHTML = `<div class="text-sm text-slate-500">Belum ada data untuk preview.</div>`;
     return;
   }
-  const thead = `
-    <thead>
-      <tr class="text-left text-slate-500 text-xs">
+   const thead = `
+    <thead class="sticky top-0 bg-white z-10">
+      <tr class="text-left text-slate-500 text-xs border-b">
         ${headers.map((h) => `<th class="py-2 pr-4">${h}</th>`).join("")}
       </tr>
     </thead>`;
@@ -87,7 +146,15 @@ function renderPreviewTable(sample, headers) {
         )
         .join("")}
     </tbody>`;
-  container.innerHTML = `<div class="overflow-x-auto"><table class="w-full">${thead}${tbody}</table></div>`;
+    // bungkus dengan scroll vertikal + horizontal (kalau kolom banyak) 
+  container.innerHTML = `
+   <div class="overflow-x-auto">
+     <div class="max-h-[720px] overflow-y-auto rounded-md">
+       <table class="w-full">
+         ${thead}${tbody}
+       </table>
+     </div>
+   </div>`;
 }
 
 function showStats() {
@@ -98,17 +165,24 @@ function showStats() {
 }
 
 function enableNextIfReady() {
-  const okUpload = DataState.rows.length > 0;
+  // 1) File dianggap terpilih kalau filename ada (CSV/XLSX)
+  const fileChosen = !!DataState.filename;
+  const okUpload   = fileChosen;
+
+  // 2) Enable tombol "Next: Mapping" setelah file dipilih
   const btnMap = $("#btn-to-mapping");
   if (btnMap) btnMap.disabled = !okUpload;
 
-  const okMapping =
-    DataState.mapping.features.length > 0 && DataState.mapping.label;
+  // 3) Label TIDAK wajib, cukup minimal satu fitur terpilih
+  const okMapping = DataState.mapping.features.length > 0;
+
+  // 4) Enable tombol Apply & Simpan
   const btnApply = $("#btn-apply-prep");
-  const btnSave = $("#btn-save-dataset");
+  const btnSave  = $("#btn-save-dataset");
   if (btnApply) btnApply.disabled = !okMapping;
-  if (btnSave) btnSave.disabled = !(okUpload && okMapping);
+  if (btnSave)  btnSave.disabled  = !(okUpload && okMapping);
 }
+
 
 /////////////////////////////
 // ---- Upload Step ------ //
@@ -121,35 +195,71 @@ function initUpload() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // set nama file
     DataState.filename = file.name;
 
-    if (file.name.toLowerCase().endsWith(".csv")) {
+    // RESET mapping agar pilihan dari upload sebelumnya tidak kebawa
+    DataState.mapping = { id: null, features: [], label: null };
+
+    // (opsional) bersihkan preview lama
+    const preview = $("#preview-table");
+    if (preview) {
+      preview.innerHTML = `<div class="text-sm text-slate-500">Memuat data...</div>`;
+    }
+
+    // deteksi tipe file
+    const lower = file.name.toLowerCase();
+
+    if (lower.endsWith(".csv")) {
+      // parse CSV di browser
       const text = await file.text();
       const { headers, rows } = csvToObjects(text);
+
+      // simpan ke state
       DataState.headers = headers;
       DataState.rows = rows;
-      DataState.sampleRows = rows.slice(0, 20);
+      DataState.sampleRows = rows;
+
+      // statistik + preview
       computeStats(rows, headers);
       showStats();
-      renderPreviewTable(DataState.sampleRows, headers);
+      renderPreviewTable(rows, headers);
 
-      // Build Mapping UI (ID/Label dropdown + fitur chips)
+      // bangun ulang UI mapping dari state baru (ID/Label kosong, fitur auto semua)
       buildMappingUI(headers);
       enableNextIfReady();
+
+    } else if (lower.endsWith(".xlsx")) {
+      try {
+        // parse XLSX via SheetJS
+        const { headers, rows } = await xlsxFileToObjects(file);
+
+        // simpan ke state
+        DataState.headers = headers;
+        DataState.rows = rows;
+        DataState.sampleRows = rows;
+
+        // statistik + preview
+        computeStats(rows, headers);
+        showStats();
+        renderPreviewTable(rows, headers);
+
+        // bangun ulang UI mapping (fresh)
+        buildMappingUI(headers);
+        enableNextIfReady();
+
+      } catch (err) {
+        console.error(err);
+        // tampilkan fallback info; user masih bisa upload ke backend
+        $("#preview-table").innerHTML = `
+          <div class="text-sm text-rose-600">
+            Gagal membaca Excel di browser: ${err.message}.
+            Kamu masih bisa klik <b>Simpan & Upload</b> agar diproses di backend.
+          </div>`;
+      }
+
     } else {
-      // XLSX → preview di browser tidak dilakukan.
-      $("#preview-table").innerHTML = `
-        <div class="text-sm text-slate-500">
-          File <span class="font-medium">${file.name}</span> terdeteksi sebagai Excel.
-          Untuk preview, gunakan tombol <b>"Simpan & Upload ke Server"</b> agar diproses backend.
-        </div>`;
-      DataState.headers = [];
-      DataState.rows = [];
-      DataState.sampleRows = [];
-      DataState.stats = { rows: 0, cols: 0, missing: 0 };
-      showStats();
-      buildMappingUI([]); // kosongkan mapping
-      enableNextIfReady();
+      Swal.fire("Format tidak didukung", "Gunakan file .csv atau .xlsx", "warning");
     }
   });
 }
@@ -170,21 +280,9 @@ function buildIdLabelOptions(headers) {
   fill(idSel);
   fill(labelSel);
 
-  // Auto-guess sederhana
-  const lower = headers.map((h) => h.toLowerCase());
-  const guessId =
-    headers[
-      lower.findIndex((h) => /(^id$|customer|pelanggan|kode|no$)/.test(h))
-    ];
-  const guessLabel =
-    headers[
-      lower.findIndex((h) => /(label|target|satisf|puas|kelas|class)/.test(h))
-    ];
-  if (guessId) idSel.value = guessId;
-  if (guessLabel) labelSel.value = guessLabel;
-
-  DataState.mapping.id = idSel.value || null;
-  DataState.mapping.label = labelSel.value || null;
+  // default kosong (biar user pilih sendiri)
+  DataState.mapping.id = null;
+  DataState.mapping.label = null;
 
   idSel.onchange = () => {
     DataState.mapping.id = idSel.value || null;
@@ -376,20 +474,45 @@ function initPreprocessing() {
   });
 
   $("#btn-save-dataset")?.addEventListener("click", async () => {
-    const fd = new FormData();
     const file = $("#dropzone-file")?.files?.[0];
-    if (file) fd.append("file", file);
-    fd.append("filename", DataState.filename || "");
+    if (!file) {
+      Swal.fire("Oops!", "Pilih file CSV/XLSX dulu.", "warning");
+      return;
+    }
+    if (!DataState.mapping.features?.length) {
+      Swal.fire("Butuh fitur", "Pilih minimal satu kolom fitur.", "info");
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("filename", DataState.filename || file.name || "");
     fd.append("mapping", JSON.stringify(DataState.mapping));
     fd.append("preprocessing", JSON.stringify(DataState.preprocessing));
 
+    Swal.fire({
+      title: "Mengunggah...",
+      text: "Mohon tunggu, dataset sedang diproses.",
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      // Pakai URL absolut agar tidak tergantung proxy Vite
+      const res = await fetch("http://127.0.0.1:5000/api/upload", {
+        method: "POST",
+        body: fd,
+      });
       const json = await res.json();
-      alert(json?.message || "Dataset berhasil dikirim ke server.");
+
+      if (res.ok) {
+        Swal.fire("Berhasil!", json?.message || "Dataset siap dimodelkan.", "success");
+      } else {
+        Swal.fire("Gagal", json?.message || "Terjadi kesalahan di server.", "error");
+      }
     } catch (err) {
       console.error(err);
-      alert("Gagal mengirim dataset ke server.");
+      Swal.fire("Error", err?.message || "Gagal mengirim dataset ke server.", "error");
     }
   });
 }
@@ -577,7 +700,7 @@ const DataPage = {
               Terapkan (preview)
             </button>
             <button id="btn-save-dataset" class="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm hover:bg-sky-700" disabled>
-              Simpan & Upload ke Database
+              Simpan & Upload
             </button>
           </div>
           <div id="prep-note" class="hidden text-sm text-sky-700">Opsi diterapkan.</div>
