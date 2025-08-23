@@ -10,3 +10,5 @@ openpyxl
 python-multipart
 flask
 flask-cors
+reportlab
+kneed
