@@ -132,6 +132,18 @@ def model_train():
 
         STATE["cluster_profile"] = cluster_profile
 
+        # Hitung silhouette score (bonus)
+        try:
+            silhouette_score_val = compute_silhouette(X, trained["labels"])
+            if np.isnan(silhouette_score_val):
+                silhouette_score_val = None
+        except Exception:
+            silhouette_score_val = None
+
+        # Hitung jumlah anggota cluster dan tabel centroid
+        counts = cluster_counts(trained["labels"])
+        centroids_tbl = centroid_table(trained["centroids"], feature_names)
+
         return jsonify({
             "ok": True,
             "k": int(trained["k"]),
